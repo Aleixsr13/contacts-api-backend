@@ -12,50 +12,16 @@ const handleErrors = require('./middleware/handleErrors')
 app.use(cors())
 app.use(express.json())
 
-const date = new Date()
-
-const daysOfWeek = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-]
-const monthsOfYear = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-]
-
-const dayOfWeek = daysOfWeek[date.getDay()]
-const month = monthsOfYear[date.getMonth()]
-const year = date.getFullYear()
-const day = date.getDate()
-const hours = date.getHours().toString().padStart(2, '0')
-const minutes = date.getMinutes().toString().padStart(2, '0')
-const seconds = date.getSeconds().toString().padStart(2, '0')
-const timezone = date.toString().match(/([A-Z]+[\+-][0-9]+.*)/)[1]
-
 app.get('/', (request, response) => {
   response.send('<h1>Hola</h1>')
 })
 
 app.get('/info', (request, response) => {
+  const currentDate = new Date()
   Person.countDocuments({}).then((count) => {
     response.send(
       `<h2>Phonebook has info for ${count} people</h2>
-      <p>${dayOfWeek} ${month} ${day} ${year} ${hours}:${minutes}:${seconds} ${timezone}</p>`
+      <p>${currentDate}</p>`
     )
   })
 })
