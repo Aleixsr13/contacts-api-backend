@@ -1,32 +1,17 @@
+require('dotenv').config()
+
+require('./mongo')
+
 const express = require('express')
 const app = express()
 const cors = require('cors')
+const Person = require('./models/Person')
+const notFound = require('./middleware/notFound')
+const handleErrors = require('./middleware/handleErrors')
 
 app.use(cors())
 app.use(express.json())
 
-let persons = [
-  {
-    id: 1,
-    name: 'Arto Hellas',
-    number: '040-12345677',
-  },
-  {
-    id: 2,
-    name: 'Ada Lovelace',
-    number: '39-44-5323523',
-  },
-  {
-    id: 3,
-    name: 'Dan Abramov',
-    number: '12-43-234345',
-  },
-  {
-    id: 4,
-    name: 'Mary Poppendieck',
-    number: '39-23-6423122',
-  },
-]
 const date = new Date()
 
 const daysOfWeek = [
@@ -67,34 +52,66 @@ app.get('/', (request, response) => {
 })
 
 app.get('/info', (request, response) => {
-  response.send(
-    `<h2>Phonebook has info for ${persons.length} people</h2>
-    <p>${dayOfWeek} ${month} ${day} ${year} ${hours}:${minutes}:${seconds} ${timezone}</p>`
-  )
+  Person.countDocuments({}).then((count) => {
+    response.send(
+      `<h2>Phonebook has info for ${count} people</h2>
+      <p>${dayOfWeek} ${month} ${day} ${year} ${hours}:${minutes}:${seconds} ${timezone}</p>`
+    )
+  })
 })
 
 app.get('/api/persons', (request, response) => {
-  response.json(persons)
+  Person.find({}).then((persons) => {
+    response.json(persons)
+  })
 })
 
-app.get('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id)
-  const person = persons.find((person) => person.id === id)
+app.get('/api/persons/:id', (request, response, next) => {
+  const { id } = request.params
+  Person.findById(id)
+    .then((person) => {
+      if (person) {
+        response.json(person)
+      } else {
+        response.status(404).end()
+      }
+    })
+    .catch((error) => {
+      next(error)
+    })
+})
 
-  if (person) {
-    response.json(person)
-  } else {
-    response.status(404).end()
+app.put('/api/persons/:id', (request, response, next) => {
+  const { id } = request.params
+  const person = request.body
+
+  const newPersonInfo = {
+    name: person.name,
+    number: person.number,
   }
+
+  Person.findByIdAndUpdate(id, newPersonInfo, { new: true })
+    .then((result) => {
+      response.json(result)
+    })
+    .catch((error) => {
+      next(error)
+    })
 })
 
-app.delete('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id)
-  persons = persons.filter((person) => person.id !== id)
-  response.status(204).end()
+app.delete('/api/persons/:id', (request, response, next) => {
+  const { id } = request.params
+
+  Person.findByIdAndRemove(id)
+    .then((result) => {
+      response.status(204).end()
+    })
+    .catch((error) => {
+      next(error)
+    })
 })
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
   const person = request.body
 
   if (!person || !person.name) {
@@ -107,32 +124,32 @@ app.post('/api/persons', (request, response) => {
     })
   }
 
-  const ids = persons.map((person) => person.id)
-  const maxId = Math.max(...ids)
-  const newPerson = {
-    id: maxId + 1,
-    name: person.name,
-    number: person.number,
-  }
+  Person.find({ name: person.name })
+    .then((result) => {
+      if (result.length > 0) {
+        return response.status(409).json({
+          error: 'name must be unique',
+        })
+      } else {
+        const newPerson = new Person({
+          name: person.name,
+          number: person.number,
+        })
 
-  if (persons.some((person) => person.name === newPerson.name)) {
-    return response.status(409).json({
-      error: 'name must be unique',
+        newPerson.save().then((savedPerson) => {
+          response.status(201).json(savedPerson)
+        })
+      }
     })
-  } else {
-    persons = [...persons, newPerson]
-
-    response.status(201).json(newPerson)
-  }
+    .catch((error) => {
+      next(error)
+    })
 })
 
-app.use((request, response) => {
-  response.status(404).json({
-    error: 'Not found',
-  })
-})
+app.use(notFound)
+app.use(handleErrors)
 
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
